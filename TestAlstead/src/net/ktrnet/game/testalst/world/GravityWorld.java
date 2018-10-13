@@ -3,15 +3,13 @@ package net.ktrnet.game.testalst.world;
 import asd.Object2D;
 import asd.TextureObject2D;
 import asd.Vector2DF;
-import net.ktrnet.game.action.object.GActionChara;
-import net.ktrnet.game.base.util.SystemInfo;
-import net.ktrnet.game.base.visual.GObjectList;
 import net.ktrnet.game.testalst.object.MovableObject2D;
+import net.ktrnet.game.testalst.util.Vector2DUtil;
 
 public class GravityWorld extends TextureObject2D implements WorldRule {
 
 	/** 重力加速度[px/ms] */
-	private final static double G = 0.0098;
+	private final static float G = 0.0098f;
 
 	private long preCalcTime = 0;
 
@@ -40,56 +38,55 @@ public class GravityWorld extends TextureObject2D implements WorldRule {
 
 		MovableObject2D mobj = (MovableObject2D)gobj;
 
-
 		double height = 0;
 
-		gobj.getCollisions2DInfo()
 		// 高さ取得
-		height = calcHeight(chara, gobjects);
+		height = calcHeight(mobj);
 
-		double unitTime = 1.0f / asd.Engine.getTargetFPS();
-		double deltaTime = asd.Engine.getDeltaTime();
+		// 単位時間
+		float unitTime = 1.0f / asd.Engine.getTargetFPS();
 
 		// 接地していなかったら自由落下
 		if (height > 0) {
-
-			/*
-移動距離＝物体速度×単位時間＋０．５×重力加速度×単位時間^2
-現在位置＝現在位置＋（経過時間／単位時間）×移動距離
-
-物体速度＝物体速度＋重力加速度×経過時間
-
-現在位置を出力
-			 */
-
-			// 初速による移動距離＝初速×単位時間
-			Vector2DF distInitVel = new Vector2DF(mobj.getVelocity().X, mobj.getVelocity().Y);
-
-			// 重力による移動距離＝０．５×重力加速度×単位時間^2
-			Vector2DF distGravity = null;
-			double fallPerSec = 0.5f * G * Math.pow(SystemInfo.getFrameSec(), 2);
-			fallPerSec =  fallInitVelocity + fallPerSec;
-			double fallElapse = (elapseTime / SystemInfo.getFrameSec()) * fallPerSec;
-			double nextY = chara.getY() + fallElapse;
-
-			// 速度計算
-			double velocityPerSec = G * SystemInfo.getFrameSec();
-			double velocityElapse = (elapseTime / SystemInfo.getFrameSec()) * velocityPerSec;
-			double nextVelocity = chara.getVelocity() + velocityElapse;
-
-			chara.setY(nextY);
-			chara.setVelocity(nextVelocity);
-
-			System.out.println("fall down fall height [" + fallElapse + "] speed [" + velocityElapse + "]");
-
-			height = calcHeight(chara, gobjects);
-			if (height == 0) {
-				chara.setVelocity(0);
-				chara.setJumping(false);
-			}
+			gravityFall(mobj, unitTime);
 		}
 
 		return;
+	}
+
+	private void gravityFall(MovableObject2D mobj, float unitTime) {
+
+		// 物体速度による移動距離＝物体速度×単位時間
+		Vector2DF initVelocity = mobj.getVelocity();
+		Vector2DF moveDistance4Init =
+				Vector2DUtil.multiplyScalar(initVelocity, unitTime);
+
+		// 重力による移動距離＝1/2 ×重力加速度×単位時間^2
+		Vector2DF gravityAcceleration = new Vector2DF(0.0f, G);
+		Vector2DF moveDistance4Gravity =
+				Vector2DUtil.multiplyScalar(gravityAcceleration, (float)(0.5f * Math.pow(unitTime, 2.0f)));
+
+		// 移動距離＝物体速度による移動距離＋重力による移動距離
+		Vector2DF moveDistance =
+				Vector2DUtil.add(moveDistance4Init, moveDistance4Gravity);
+
+		// 移動後の位置
+		Vector2DF beforePosition = mobj.getPosition();
+		Vector2DF afterPosition =
+				Vector2DUtil.add(beforePosition, moveDistance);
+		mobj.setPosition(afterPosition);
+
+
+		// 重力による速度変化の反映
+		// 重力による変化速度＝重力加速度×単位時間
+		Vector2DF gravityVelocity =
+				Vector2DUtil.multiplyScalar(gravityAcceleration, unitTime);
+
+		// 変化後の速度
+		Vector2DF beforeVelocity = mobj.getVelocity();
+		Vector2DF afterVelocity =
+				Vector2DUtil.add(beforeVelocity, gravityVelocity);
+		mobj.setVelocity(afterVelocity);
 	}
 
 	/**
@@ -103,12 +100,12 @@ public class GravityWorld extends TextureObject2D implements WorldRule {
 	 * @param gobjects 検索する対象となる世界に存在するオブジェクト群
 	 * @return 高さ
 	 */
-	private double calcHeight(GActionChara chara, GObjectList gobjects) {
+	private double calcHeight(MovableObject2D mobj) {
 
-		double ya = chara.getY() + chara.getHeight();
+		double ya = mobj.getPosition().Y + mobj.getTexture().getSize().Y;
 
 		// TODO 仮にウィンドウ底辺を直近オブジェクトとする
-		double yb = SystemInfo.getCanvasHeight();
+		double yb = asd.Engine.getWindowSize().Y;
 
 		// 高さ計算
 		double height = yb - ya;
